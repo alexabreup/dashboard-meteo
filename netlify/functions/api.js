@@ -11,15 +11,15 @@ const MAX_ESTACOES_ATIVAS = Math.max(
         process.env.MAX_ESTACOES_ATIVAS ||
         process.env.ESTACOES_ATIVAS ||
         process.env.NUM_ESTACOES_ATIVAS ||
-        '4',
+        '50',
         10
     )
 );
-const DEFAULT_ESTACOES_ATIVAS_IDS = [2, 3, 7, 8];
+// Removido DEFAULT_ESTACOES_ATIVAS_IDS - agora usa descoberta automática
 const ESTACOES_ATIVAS_IDS = (
     process.env.ESTACOES_ATIVAS_IDS ||
     process.env.ACTIVE_STATIONS ||
-    DEFAULT_ESTACOES_ATIVAS_IDS.join(',')
+    ''
 )
     .split(',')
     .map((id) => parseInt(id.trim(), 10))
@@ -175,46 +175,65 @@ async function buscarDadosEstacaoAPI(estacaoId) {
 
 // Função: Obter lista de estações disponíveis (tentando IDs sequenciais)
 async function obterListaEstacoes() {
+    // Se IDs específicos foram configurados via env, usar apenas esses
     if (ESTACOES_ATIVAS_IDS.length > 0) {
         return ESTACOES_ATIVAS_IDS.slice(0, MAX_ESTACOES_ATIVAS);
     }
 
+    // Caso contrário, fazer descoberta automática de 1 até ESTACOES_MAX (50)
     const idsEncontrados = [];
     const FALHAS_CONSECUTIVAS_MAX = 5; // Parar após 5 falhas consecutivas
     let falhasConsecutivas = 0;
     
-    for (let id = ESTACOES_MIN; id <= ESTACOES_MAX; id++) {
-        try {
-            const url = `${API_BASE_URL}/${id}`;
-            const resposta = await fazerRequisicao(url);
-            
-            // Verificar se a resposta contém dados válidos
-            if (resposta && resposta.code === 200 && resposta.arrResponse) {
-                idsEncontrados.push(id);
-                falhasConsecutivas = 0; // Resetar contador de falhas
-            } else {
-                falhasConsecutivas++;
-                if (falhasConsecutivas >= FALHAS_CONSECUTIVAS_MAX) {
-                    break;
-                }
-            }
-        } catch (error) {
-            // Se for 404, a estação não existe
-            if (error.message && error.message.includes('404')) {
-                falhasConsecutivas++;
-                if (falhasConsecutivas >= FALHAS_CONSECUTIVAS_MAX) {
-                    break;
+    // Processar em batches para otimizar
+    const BATCH_SIZE = 10;
+    
+    for (let batchStart = ESTACOES_MIN; batchStart <= ESTACOES_MAX; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE - 1, ESTACOES_MAX);
+        const batchPromises = [];
+        
+        for (let id = batchStart; id <= batchEnd; id++) {
+            batchPromises.push(
+                fazerRequisicao(`${API_BASE_URL}/${id}`)
+                    .then(resposta => {
+                        if (resposta && resposta.code === 200 && resposta.arrResponse) {
+                            return { id, success: true };
+                        }
+                        return { id, success: false };
+                    })
+                    .catch(error => {
+                        return { id, success: false, error };
+                    })
+            );
+        }
+        
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+                const { id, success } = result.value;
+                if (success) {
+                    idsEncontrados.push(id);
+                    falhasConsecutivas = 0; // Resetar contador de falhas
+                } else {
+                    falhasConsecutivas++;
+                    // Se já encontramos estações e temos muitas falhas consecutivas, parar
+                    if (falhasConsecutivas >= FALHAS_CONSECUTIVAS_MAX && idsEncontrados.length > 0) {
+                        console.log(`Parando busca após ${FALHAS_CONSECUTIVAS_MAX} falhas consecutivas`);
+                        return idsEncontrados.sort((a, b) => a - b);
+                    }
                 }
             }
         }
         
-        // Pequeno delay para não sobrecarregar a API
-        if (id % 10 === 0) {
+        // Pequeno delay entre batches para não sobrecarregar a API
+        if (batchEnd < ESTACOES_MAX) {
             await new Promise(resolve => setTimeout(resolve, 50));
         }
     }
     
-    return idsEncontrados;
+    console.log(`Descoberta concluída: ${idsEncontrados.length} estações encontradas`);
+    return idsEncontrados.sort((a, b) => a - b);
 }
 
 // Função: Buscar dados de todas as estações
@@ -244,6 +263,7 @@ async function buscarDadosEstacoes() {
             }
         });
         
+        // Retornar todas as estações encontradas (sem limite, já que MAX_ESTACOES_ATIVAS agora é 50)
         const dadosValidos = dados.filter(estacao => !estacao.erro);
         const dadosOrdenados = dadosValidos.sort((a, b) => {
             const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
@@ -251,11 +271,13 @@ async function buscarDadosEstacoes() {
             return dataB - dataA;
         });
 
+        // Se houver mais estações que o limite, priorizar as mais recentes
         const selecionados = dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
         const idsSelecionados = new Set(selecionados.map(estacao => estacao.estacao_id));
 
         const restantes = dados.filter(estacao => estacao.erro || !idsSelecionados.has(estacao.estacao_id));
 
+        // Retornar todas (selecionadas + restantes com erro)
         return [...selecionados, ...restantes];
     } catch (error) {
         console.error('Erro ao buscar dados das estações:', error);

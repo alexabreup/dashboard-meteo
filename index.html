@@ -29,13 +29,20 @@
             </div>
             <div class="header-info">
                 <span id="lastUpdate" class="last-update">Carregando...</span>
-                <button id="refreshBtn" class="btn-refresh">🔄 Atualizar</button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="rescanBtn" class="btn-refresh" title="Re-escanear estações">🔍 Re-escanear</button>
+                    <button id="refreshBtn" class="btn-refresh">🔄 Atualizar</button>
+                </div>
             </div>
         </header>
 
         <div id="loading" class="loading">
             <div class="spinner"></div>
             <p>Carregando dados...</p>
+        </div>
+
+        <div id="discovery-status" class="discovery-status" style="display: none; margin: 16px 0; padding: 12px; background: #e3f2fd; border-radius: 8px; text-align: center; font-size: 14px; color: #1976d2;">
+            🔍 Buscando estações disponíveis...
         </div>
 
         <div id="error" class="error" style="display: none;">
@@ -65,6 +72,10 @@
 
         <footer>
             <p>Dados atualizados automaticamente a cada 1 minuto após o carregamento inicial</p>
+            <div class="admin-panel" style="margin-top: 16px; padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; font-size: 12px;">
+                <p style="margin: 4px 0;">Última busca: <span id="last-scan-time">--</span></p>
+                <p style="margin: 4px 0;">Estações encontradas: <span id="stations-count">0</span></p>
+            </div>
             <p class="footer-info">Sistema de Monitoramento - Eletromidia</p>
         </footer>
     </div>

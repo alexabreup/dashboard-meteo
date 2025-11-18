@@ -54,3 +54,4 @@ test('handler usa fetcher injetado e mantém payload', async () => {
     assert.deepEqual(JSON.parse(response.body), mockData);
 });
 
+

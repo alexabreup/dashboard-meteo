@@ -6,15 +6,25 @@ const currentHostname = isBrowser ? window.location.hostname : '';
 const isNetlifyHost = Boolean(currentHostname && currentHostname.endsWith('netlify.app'));
 const USE_NETLIFY_PROXY = isNetlifyHost || currentHostname === 'eletrometeorolgia.netlify.app';
 const API_BASE_URL = USE_NETLIFY_PROXY ? NETLIFY_API_PATH : REMOTE_API_BASE_URL;
-const STATION_IDS = [2, 3, 7, 8];
+const MAX_STATION_ID = 50; // Limite máximo de IDs para testar
 const ACTIVE_THRESHOLD_MINUTES = 10;
 const REFRESH_INTERVAL_MS = 30000; // 30 segundos
+const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hora
 
 let updateInterval = null;
+let discoveredStationIds = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refreshBtn');
     refreshBtn.addEventListener('click', loadData);
+
+    const rescanBtn = document.getElementById('rescanBtn');
+    if (rescanBtn) {
+        rescanBtn.addEventListener('click', () => {
+            clearCachedStationIds();
+            loadData();
+        });
+    }
 
     loadData();
 });
@@ -23,16 +33,40 @@ async function loadData() {
     const loading = document.getElementById('loading');
     const errorBox = document.getElementById('error');
     const tabsContainer = document.getElementById('tabs-container');
+    const discoveryStatus = document.getElementById('discovery-status');
 
     loading.style.display = 'block';
     errorBox.style.display = 'none';
     tabsContainer.style.display = 'none';
+    
+    if (discoveryStatus) {
+        discoveryStatus.style.display = 'none';
+    }
 
     try {
+        // Descobrir estações se necessário
+        if (!discoveredStationIds || discoveredStationIds.length === 0) {
+            if (discoveryStatus) {
+                discoveryStatus.style.display = 'block';
+                discoveryStatus.textContent = '🔍 Buscando estações disponíveis...';
+            }
+            
+            discoveredStationIds = await discoverAllStations();
+            cacheStationIds(discoveredStationIds);
+            
+            if (discoveryStatus) {
+                discoveryStatus.textContent = `✅ ${discoveredStationIds.length} estação(ões) encontrada(s)`;
+                setTimeout(() => {
+                    if (discoveryStatus) discoveryStatus.style.display = 'none';
+                }, 3000);
+            }
+        }
+
         const stations = await fetchStations();
 
         loading.style.display = 'none';
         errorBox.style.display = 'none';
+        if (discoveryStatus) discoveryStatus.style.display = 'none';
 
         displayStations(stations);
         updateLastUpdate();
@@ -45,6 +79,7 @@ async function loadData() {
         console.error('Erro ao carregar dados:', error);
         loading.style.display = 'none';
         errorBox.style.display = 'block';
+        if (discoveryStatus) discoveryStatus.style.display = 'none';
         errorBox.innerHTML = `
             <p>Erro ao carregar dados: ${error.message || 'Erro desconhecido'}</p>
             <p style="font-size: 12px; margin-top: 8px;">
@@ -59,16 +94,169 @@ async function loadData() {
     }
 }
 
+// Funções de cache para IDs de estações
+function getCachedStationIds() {
+    if (!isBrowser) return null;
+    
+    try {
+        const cached = localStorage.getItem('weather_station_ids');
+        if (!cached) return null;
+
+        const { ids, timestamp } = JSON.parse(cached);
+        const now = Date.now();
+
+        if (now - timestamp > CACHE_DURATION_MS) {
+            return null; // Cache expirado
+        }
+
+        return ids;
+    } catch (error) {
+        console.warn('Erro ao ler cache de estações:', error);
+        return null;
+    }
+}
+
+function cacheStationIds(ids) {
+    if (!isBrowser) return;
+    
+    try {
+        localStorage.setItem('weather_station_ids', JSON.stringify({
+            ids,
+            timestamp: Date.now()
+        }));
+    } catch (error) {
+        console.warn('Erro ao salvar cache de estações:', error);
+    }
+}
+
+function clearCachedStationIds() {
+    if (!isBrowser) return;
+    
+    try {
+        localStorage.removeItem('weather_station_ids');
+        discoveredStationIds = null;
+    } catch (error) {
+        console.warn('Erro ao limpar cache de estações:', error);
+    }
+}
+
+// Função: Descobrir todas as estações disponíveis
+async function discoverAllStations() {
+    // Tentar usar cache primeiro
+    const cachedIds = getCachedStationIds();
+    if (cachedIds && cachedIds.length > 0) {
+        console.log(`Usando cache: ${cachedIds.length} estações encontradas`);
+        return cachedIds;
+    }
+
+    // Se usar proxy Netlify, a descoberta já é feita no backend
+    if (USE_NETLIFY_PROXY) {
+        try {
+            const response = await fetch(API_BASE_URL, {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    const ids = data
+                        .map(s => s.estacao_id)
+                        .filter(id => id != null)
+                        .sort((a, b) => a - b);
+                    return ids;
+                }
+            }
+        } catch (error) {
+            console.warn('Erro ao buscar estações via proxy:', error);
+        }
+    }
+
+    // Busca direta na API: testar IDs de 1 até MAX_STATION_ID
+    const validStations = [];
+    const CONSECUTIVE_FAILURES_LIMIT = 5;
+    let consecutiveFailures = 0;
+
+    // Criar batches para não sobrecarregar a API
+    const batchSize = 10;
+    const batches = [];
+    
+    for (let start = 1; start <= MAX_STATION_ID; start += batchSize) {
+        const end = Math.min(start + batchSize - 1, MAX_STATION_ID);
+        batches.push({ start, end });
+    }
+
+    for (const batch of batches) {
+        const promises = [];
+        
+        for (let id = batch.start; id <= batch.end; id++) {
+            // Verificação leve: apenas checar se a estação existe (HEAD ou GET simples)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            promises.push(
+                fetch(`${REMOTE_API_BASE_URL}/${id}`, {
+                    method: 'HEAD',
+                    signal: controller.signal
+                })
+                    .then(res => {
+                        clearTimeout(timeoutId);
+                        return { id, success: res.ok };
+                    })
+                    .catch(() => {
+                        clearTimeout(timeoutId);
+                        return { id, success: false };
+                    })
+            );
+        }
+
+        const results = await Promise.allSettled(promises);
+
+        for (const result of results) {
+            if (result.status === 'fulfilled') {
+                const { id, success } = result.value;
+                if (success) {
+                    validStations.push(id);
+                    consecutiveFailures = 0;
+                } else {
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= CONSECUTIVE_FAILURES_LIMIT && validStations.length > 0) {
+                        // Se já encontramos algumas estações e temos muitas falhas consecutivas, parar
+                        console.log(`Parando busca após ${CONSECUTIVE_FAILURES_LIMIT} falhas consecutivas`);
+                        return validStations.sort((a, b) => a - b);
+                    }
+                }
+            }
+        }
+
+        // Pequeno delay entre batches para não sobrecarregar
+        if (batch.end < MAX_STATION_ID) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+
+    console.log(`Descoberta concluída: ${validStations.length} estações encontradas`);
+    return validStations.sort((a, b) => a - b);
+}
+
 async function fetchStations() {
     if (USE_NETLIFY_PROXY) {
         return fetchStationsViaProxy();
     }
 
-    const requests = STATION_IDS.map(id => fetchStationData(id));
+    // Usar IDs descobertos ou descobrir agora
+    if (!discoveredStationIds || discoveredStationIds.length === 0) {
+        discoveredStationIds = await discoverAllStations();
+        cacheStationIds(discoveredStationIds);
+    }
+
+    if (discoveredStationIds.length === 0) {
+        return [];
+    }
+
+    const requests = discoveredStationIds.map(id => fetchStationData(id));
     const results = await Promise.allSettled(requests);
 
     return results.map((result, index) => {
-        const estacaoId = STATION_IDS[index];
+        const estacaoId = discoveredStationIds[index];
         if (result.status === 'fulfilled') {
             return result.value;
         }
@@ -277,9 +465,11 @@ function displayStations(data) {
     const tabsContainer = document.getElementById('tabs-container');
     const activeContainer = document.getElementById('stations-active');
     const disconnectedContainer = document.getElementById('stations-disconnected');
+    const stationsCount = document.getElementById('stations-count');
 
     if (!data || data.length === 0) {
         tabsContainer.style.display = 'none';
+        if (stationsCount) stationsCount.textContent = '0';
         return;
     }
 
@@ -289,6 +479,10 @@ function displayStations(data) {
 
     document.getElementById('count-active').textContent = activeStations.length;
     document.getElementById('count-disconnected').textContent = disconnectedStations.length;
+    
+    if (stationsCount) {
+        stationsCount.textContent = data.length;
+    }
 
     activeContainer.innerHTML = activeStations.length
         ? activeStations.map(station => createStationCard(station, true)).join('')
@@ -335,6 +529,12 @@ function createStationCard(station, isActive = true) {
                 <div class="station-id">ID ${station.estacao_id}</div>
             </div>
 
+            <div style="margin-top: 12px; margin-bottom: 16px;">
+                <h4 style="margin: 0; font-size: 1.1rem; font-weight: 500; color: var(--text-primary);">
+                    Última leitura: ${timeStr}
+                </h4>
+            </div>
+
             <div class="sensors-grid">
                 ${renderSensor('Temperatura', formatValue(station.temperatura, '°C'))}
                 ${renderSensor('Umidade', formatValue(station.umidade, '%'))}
@@ -346,12 +546,6 @@ function createStationCard(station, isActive = true) {
                 ${renderSensor('Chuva Total', formatValue(station.chuva_total, 'mm'))}
                 ${renderSensor('PM2.5', formatValue(station.pm25, 'μg/m³', 0))}
                 ${renderSensor('PM10', formatValue(station.pm10, 'μg/m³', 0))}
-            </div>
-
-            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-                <div style="font-size: 12px; color: var(--text-muted);">
-                    Última leitura: ${timeStr}
-                </div>
             </div>
         </div>
     `;
@@ -379,6 +573,7 @@ function formatValue(value, unit = '', decimals = 1) {
 function formatTimestamp(isoString) {
     const date = new Date(isoString);
     if (Number.isNaN(date.getTime())) return 'Data não disponível';
+    // Formato: 18/11/2025, 14:35
     return date.toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
@@ -391,14 +586,28 @@ function formatTimestamp(isoString) {
 // Atualizar última atualização
 function updateLastUpdate() {
     const lastUpdate = document.getElementById('lastUpdate');
+    const lastScanTime = document.getElementById('last-scan-time');
     const now = new Date();
-    lastUpdate.textContent = `Última atualização do dashboard: ${now.toLocaleString('pt-BR', {
+    
+    const timeStr = now.toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
-    })}`;
+    });
+    
+    lastUpdate.textContent = `Última atualização do dashboard: ${timeStr}`;
+    
+    if (lastScanTime) {
+        lastScanTime.textContent = timeStr;
+    }
 }
+
+// Função global para forçar nova descoberta
+window.forceDiscoverStations = function() {
+    clearCachedStationIds();
+    loadData();
+};
 
