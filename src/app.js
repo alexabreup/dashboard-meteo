@@ -1,5 +1,11 @@
 // Configurações principais
-const API_BASE_URL = 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
+const REMOTE_API_BASE_URL = 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
+const NETLIFY_API_PATH = '/api/dados';
+const isBrowser = typeof window !== 'undefined';
+const currentHostname = isBrowser ? window.location.hostname : '';
+const isNetlifyHost = Boolean(currentHostname && currentHostname.endsWith('netlify.app'));
+const USE_NETLIFY_PROXY = isNetlifyHost || currentHostname === 'eletrometeorolgia.netlify.app';
+const API_BASE_URL = USE_NETLIFY_PROXY ? NETLIFY_API_PATH : REMOTE_API_BASE_URL;
 const STATION_IDS = [2, 3, 7, 8];
 const ACTIVE_THRESHOLD_MINUTES = 10;
 const REFRESH_INTERVAL_MS = 30000; // 30 segundos
@@ -54,6 +60,10 @@ async function loadData() {
 }
 
 async function fetchStations() {
+    if (USE_NETLIFY_PROXY) {
+        return fetchStationsViaProxy();
+    }
+
     const requests = STATION_IDS.map(id => fetchStationData(id));
     const results = await Promise.allSettled(requests);
 
@@ -95,6 +105,31 @@ async function fetchStationData(estacaoId) {
     }
 }
 
+async function fetchStationsViaProxy() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+        const response = await fetch(API_BASE_URL, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error('Resposta inválida do proxy');
+        }
+
+        return data.map(normalizeProxyStationData);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 function normalizeStationData(estacaoId, apiData) {
     const payload = apiData?.arrResponse || apiData;
 
@@ -124,6 +159,44 @@ function normalizeStationData(estacaoId, apiData) {
         chuva_total: extractNumber(payload.Chuva || payload.precipitacao),
         pm25: extractNumber(payload['PM2.5'] || payload.pm25),
         pm10: extractNumber(payload.PM10 || payload.pm10),
+        erro: null
+    };
+}
+
+function normalizeProxyStationData(payload) {
+    if (!payload) {
+        return {
+            estacao_id: null,
+            nome: 'Estação desconhecida',
+            erro: 'Resposta vazia do proxy',
+            timestamp: null
+        };
+    }
+
+    if (payload.erro) {
+        return {
+            estacao_id: payload.estacao_id || null,
+            nome: payload.nome || `Estação ${payload.estacao_id || '?'}`,
+            erro: payload.erro,
+            timestamp: payload.timestamp || null
+        };
+    }
+
+    return {
+        estacao_id: payload.estacao_id || null,
+        nome: payload.nome || `Estação ${payload.estacao_id || '?'}`,
+        localizacao: payload.localizacao || null,
+        timestamp: payload.timestamp || null,
+        temperatura: payload.temperatura ?? null,
+        umidade: payload.umidade ?? null,
+        pressao: payload.pressao ?? null,
+        vento_velocidade: payload.vento_velocidade ?? null,
+        vento_direcao: payload.vento_direcao ?? null,
+        ruido: payload.ruido ?? null,
+        iluminancia: payload.iluminancia ?? null,
+        chuva_total: payload.chuva_total ?? null,
+        pm25: payload.pm25 ?? null,
+        pm10: payload.pm10 ?? null,
         erro: null
     };
 }

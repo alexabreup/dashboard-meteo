@@ -2,6 +2,7 @@
 // Esta função será chamada quando o app estiver no Netlify
 
 const API_BASE_URL = process.env.API_BASE_URL || 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
+const BRAZIL_TZ_OFFSET = '-03:00';
 const ESTACOES_MIN = parseInt(process.env.ESTACOES_MIN || '1', 10);
 const ESTACOES_MAX = parseInt(process.env.ESTACOES_MAX || '50', 10);
 const MAX_ESTACOES_ATIVAS = Math.max(
@@ -23,6 +24,43 @@ const ESTACOES_ATIVAS_IDS = (
     .split(',')
     .map((id) => parseInt(id.trim(), 10))
     .filter(Number.isFinite);
+
+function extrairNumero(str) {
+    if (str === null || str === undefined || str === '') {
+        return 0;
+    }
+    const match = str.toString().replace(',', '.').match(/-?\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : 0;
+}
+
+function parseBrasiliaTimestamp(rawTimestamp) {
+    if (!rawTimestamp || typeof rawTimestamp !== 'string') {
+        return new Date().toISOString();
+    }
+
+    try {
+        const [data, hora] = rawTimestamp.trim().split(' ');
+        if (!data || !hora) {
+            return new Date().toISOString();
+        }
+
+        const [dia, mes, ano] = data.split('/');
+        if (!dia || !mes || !ano) {
+            return new Date().toISOString();
+        }
+
+        const isoWithOffset = `${ano.padStart(4, '0')}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}T${hora}${BRAZIL_TZ_OFFSET}`;
+        const parsed = new Date(isoWithOffset);
+
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+        }
+
+        return new Date().toISOString();
+    } catch (error) {
+        return new Date().toISOString();
+    }
+}
 
 // Função: Fazer requisição HTTP
 function fazerRequisicao(url) {
@@ -96,23 +134,7 @@ function converterDadosAPI(estacaoId, dadosAPI) {
         const resp = dadosAPI.arrResponse;
         
         // Converter data de "17/11/2025 14:56:49" para timestamp ISO
-        let timestamp = new Date().toISOString();
-        if (resp['Última Leitura']) {
-            try {
-                const [data, hora] = resp['Última Leitura'].split(' ');
-                const [dia, mes, ano] = data.split('/');
-                timestamp = new Date(`${ano}-${mes}-${dia}T${hora}`).toISOString();
-            } catch (e) {
-                // Usar timestamp atual se falhar
-            }
-        }
-
-        // Função auxiliar para extrair número de strings como "28.6 °C"
-        const extrairNumero = (str) => {
-            if (!str) return 0;
-            const match = str.toString().match(/[\d.]+/);
-            return match ? parseFloat(match[0]) : 0;
-        };
+        const timestamp = parseBrasiliaTimestamp(resp['Última Leitura']);
 
         return {
             estacao_id: estacaoId,
@@ -241,53 +263,63 @@ async function buscarDadosEstacoes() {
     }
 }
 
-exports.handler = async (event, context) => {
-    const { httpMethod, path, queryStringParameters } = event;
-    
-    // CORS headers
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Content-Type': 'application/json'
-    };
-    
-    // Handle preflight
-    if (httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers,
-            body: ''
+function createHandler(deps = {}) {
+    const dataFetcher = typeof deps.buscarDadosEstacoes === 'function'
+        ? deps.buscarDadosEstacoes
+        : buscarDadosEstacoes;
+
+    return async (event, context) => {
+        const { httpMethod, path = '' } = event || {};
+        
+        // CORS headers
+        const headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Content-Type': 'application/json'
         };
-    }
-    
-    // Para produção no Netlify, você pode:
-    // 1. Chamar uma API externa (se o servidor estiver acessível)
-    // 2. Usar um serviço de proxy
-    // 3. Configurar webhook para enviar dados para um serviço externo
-    
-    try {
-        if (path === '/api/dados' || path.endsWith('/dados')) {
-            // Buscar dados da API externa
-            const dados = await buscarDadosEstacoes();
+        
+        // Handle preflight
+        if (httpMethod === 'OPTIONS') {
             return {
                 statusCode: 200,
                 headers,
-                body: JSON.stringify(dados)
+                body: ''
             };
         }
         
-        return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Endpoint não encontrado' })
-        };
-        
-    } catch (error) {
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: error.message })
-        };
-    }
+        try {
+            if (path === '/api/dados' || path.endsWith('/dados')) {
+                // Buscar dados da API externa
+                const dados = await dataFetcher();
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(dados)
+                };
+            }
+            
+            return {
+                statusCode: 404,
+                headers,
+                body: JSON.stringify({ error: 'Endpoint não encontrado' })
+            };
+            
+        } catch (error) {
+            return {
+                statusCode: 500,
+                headers,
+                body: JSON.stringify({ error: error.message })
+            };
+        }
+    };
+}
+
+const handler = createHandler();
+
+module.exports = {
+    handler,
+    createHandler,
+    converterDadosAPI,
+    parseBrasiliaTimestamp
 };
