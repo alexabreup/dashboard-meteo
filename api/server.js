@@ -14,6 +14,22 @@ app.use(express.json());
 
 // URL base da API externa
 const API_BASE_URL = process.env.API_BASE_URL || 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
+const ESTACOES_MIN = parseInt(process.env.ESTACOES_MIN || '1', 10);
+const ESTACOES_MAX = parseInt(process.env.ESTACOES_MAX || '30', 10);
+const MAX_ESTACOES_ATIVAS = Math.max(
+    1,
+    parseInt(
+        process.env.MAX_ESTACOES_ATIVAS ||
+        process.env.ESTACOES_ATIVAS ||
+        process.env.NUM_ESTACOES_ATIVAS ||
+        '4',
+        10
+    )
+);
+const ESTACOES_ATIVAS_IDS = (process.env.ESTACOES_ATIVAS_IDS || process.env.ACTIVE_STATIONS || '')
+    .split(',')
+    .map((id) => parseInt(id.trim(), 10))
+    .filter(Number.isFinite);
 
 // Caminho para os dados (ajuste conforme necessário)
 const DATA_DIR = process.env.DATA_DIR || '/opt/docker-estacao-meteorologica/data';
@@ -232,8 +248,12 @@ async function lerDadosEstacoes() {
     
     try {
         // Buscar diretamente estações conhecidas
-        // Tentar IDs de 1 a 30
-        const idsParaTestar = Array.from({length: 30}, (_, i) => i + 1);
+        let idsParaTestar = ESTACOES_ATIVAS_IDS.length > 0
+            ? ESTACOES_ATIVAS_IDS.slice(0, MAX_ESTACOES_ATIVAS)
+            : Array.from(
+                { length: Math.max(0, ESTACOES_MAX - ESTACOES_MIN + 1) },
+                (_, i) => ESTACOES_MIN + i
+            );
         
         console.log(`Buscando dados de ${idsParaTestar.length} estações em paralelo (lotes de 10)...`);
         
@@ -271,12 +291,20 @@ async function lerDadosEstacoes() {
         });
         
         console.log(`Busca concluída: ${sucesso} estações encontradas, ${falhas} não encontradas`);
-        console.log(`Total de estações retornadas: ${dados.length}`);
+        console.log(`Total de estações retornadas antes do filtro: ${dados.length}`);
     } catch (error) {
         console.error('Erro ao buscar dados das estações:', error);
     }
     
-    return dados;
+    const dadosOrdenados = dados
+        .filter(estacao => !estacao.erro)
+        .sort((a, b) => {
+            const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const dataB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return dataB - dataA;
+        });
+
+    return dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
 }
 
 // Função: Ler dados de uma estação específica

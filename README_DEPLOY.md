@@ -1,4 +1,4 @@
-# 🚀 Guia de Deploy no Netlify
+# Guia de Deploy no Netlify
 
 ## Pré-requisitos
 
@@ -56,18 +56,20 @@ Se quiser personalizar a API ou intervalo de estações:
    - `API_BASE_URL`: URL base da API (padrão: `https://iothub.eletromidia.com.br/api/v1/estacoes_mets`)
    - `ESTACOES_MIN`: ID mínimo da estação (padrão: `1`)
    - `ESTACOES_MAX`: ID máximo da estação (padrão: `30`)
+   - `MAX_ESTACOES_ATIVAS`: quantidade máxima de estações retornadas pelo dashboard (padrão: `4`)
+   - `ESTACOES_ATIVAS_IDS`: lista de IDs separados por vírgula a serem considerados (ex.: `1,5,8,12`). Se informada, apenas esses IDs serão consultados (útil quando você sabe exatamente quais 4 estações estão ativas).
 
 ### 4. Verificar Deploy
 
 Após o deploy, você receberá uma URL como: `https://seu-app.netlify.app`
 
 Acesse a URL e verifique:
-- ✅ O dashboard carrega corretamente
-- ✅ As estações são exibidas
-- ✅ Estações ativas e inativas estão separadas
-- ✅ O PWA pode ser instalado (ícone de instalação no navegador)
+- O dashboard carrega corretamente
+- As estações são exibidas
+- Estações ativas e inativas estão separadas
+- O PWA pode ser instalado (ícone de instalação no navegador)
 
-## 📱 Instalar como PWA
+## Instalar como PWA
 
 ### No Desktop:
 - **Chrome/Edge**: Clique no ícone de instalação na barra de endereços
@@ -77,7 +79,7 @@ Acesse a URL e verifique:
 - **Android/Chrome**: Menu → "Adicionar à tela inicial"
 - **iOS/Safari**: Compartilhar → "Adicionar à Tela de Início"
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Service Worker não funciona
 - Verifique se o arquivo `sw.js` está na raiz do diretório
@@ -94,7 +96,7 @@ Acesse a URL e verifique:
 - Verifique se o `manifest.json` está acessível
 - Teste em diferentes navegadores
 
-## 📝 Notas
+## Notas
 
 - O Netlify fornece HTTPS automaticamente
 - O Service Worker funciona apenas em HTTPS

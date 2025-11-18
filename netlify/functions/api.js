@@ -2,6 +2,22 @@
 // Esta função será chamada quando o app estiver no Netlify
 
 const API_BASE_URL = process.env.API_BASE_URL || 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
+const ESTACOES_MIN = parseInt(process.env.ESTACOES_MIN || '1', 10);
+const ESTACOES_MAX = parseInt(process.env.ESTACOES_MAX || '50', 10);
+const MAX_ESTACOES_ATIVAS = Math.max(
+    1,
+    parseInt(
+        process.env.MAX_ESTACOES_ATIVAS ||
+        process.env.ESTACOES_ATIVAS ||
+        process.env.NUM_ESTACOES_ATIVAS ||
+        '4',
+        10
+    )
+);
+const ESTACOES_ATIVAS_IDS = (process.env.ESTACOES_ATIVAS_IDS || process.env.ACTIVE_STATIONS || '')
+    .split(',')
+    .map((id) => parseInt(id.trim(), 10))
+    .filter(Number.isFinite);
 
 // Função: Fazer requisição HTTP
 function fazerRequisicao(url) {
@@ -132,13 +148,15 @@ async function buscarDadosEstacaoAPI(estacaoId) {
 
 // Função: Obter lista de estações disponíveis (tentando IDs sequenciais)
 async function obterListaEstacoes() {
+    if (ESTACOES_ATIVAS_IDS.length > 0) {
+        return ESTACOES_ATIVAS_IDS.slice(0, MAX_ESTACOES_ATIVAS);
+    }
+
     const idsEncontrados = [];
-    const MAX_TENTATIVAS = 50; // Tentar até ID 50
     const FALHAS_CONSECUTIVAS_MAX = 5; // Parar após 5 falhas consecutivas
-    
     let falhasConsecutivas = 0;
     
-    for (let id = 1; id <= MAX_TENTATIVAS; id++) {
+    for (let id = ESTACOES_MIN; id <= ESTACOES_MAX; id++) {
         try {
             const url = `${API_BASE_URL}/${id}`;
             const resposta = await fazerRequisicao(url);
@@ -147,6 +165,10 @@ async function obterListaEstacoes() {
             if (resposta && resposta.code === 200 && resposta.arrResponse) {
                 idsEncontrados.push(id);
                 falhasConsecutivas = 0; // Resetar contador de falhas
+
+                if (idsEncontrados.length >= MAX_ESTACOES_ATIVAS) {
+                    break;
+                }
             } else {
                 falhasConsecutivas++;
                 if (falhasConsecutivas >= FALHAS_CONSECUTIVAS_MAX) {
@@ -199,7 +221,19 @@ async function buscarDadosEstacoes() {
             }
         });
         
-        return dados;
+        const dadosOrdenados = dados
+            .filter(estacao => !estacao.erro)
+            .sort((a, b) => {
+                const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const dataB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return dataB - dataA;
+            });
+
+        if (dadosOrdenados.length >= MAX_ESTACOES_ATIVAS) {
+            return dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
+        }
+
+        return dadosOrdenados;
     } catch (error) {
         console.error('Erro ao buscar dados das estações:', error);
         return [];

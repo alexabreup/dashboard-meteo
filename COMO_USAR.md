@@ -1,6 +1,6 @@
-# 📊 Como Usar o Dashboard
+# Como Usar o Dashboard
 
-## 🚀 Uso Local (No Servidor)
+## Uso Local (No Servidor)
 
 ### Opção 1: Script Automático
 
@@ -39,7 +39,7 @@ cd /opt/docker-estacao-meteorologica/dashboard
 
 ---
 
-## 🌐 Deploy no Netlify
+## Deploy no Netlify
 
 ### Método 1: Via Netlify CLI
 
@@ -86,7 +86,7 @@ tar -czf dashboard.tar.gz dashboard/
 
 ---
 
-## 🔧 Configuração para Dados Reais (Netlify)
+## Configuração para Dados Reais (Netlify)
 
 Para usar dados reais no Netlify, você precisa:
 
@@ -102,7 +102,7 @@ O dashboard já vem com dados de exemplo para demonstração.
 
 ---
 
-## 📱 Acessar Dashboard
+## Acessar Dashboard
 
 ### Local:
 ```
@@ -116,18 +116,17 @@ https://seu-app.netlify.app
 
 ---
 
-## 🎨 Funcionalidades
-
-- ✅ Visualização em tempo real
-- ✅ Atualização automática (30 segundos)
-- ✅ Interface moderna e responsiva
-- ✅ Múltiplas estações
-- ✅ Indicadores de status
-- ✅ Design dark mode
+## Funcionalidades
+- Visualização em tempo real
+- Atualização automática (30 segundos)
+- Interface moderna e responsiva
+- Múltiplas estações
+- Indicadores de status
+- Design dark mode
 
 ---
 
-## 🔍 Verificar se Está Funcionando
+## Verificar se Está Funcionando
 
 ### Testar API localmente:
 
@@ -143,7 +142,7 @@ curl http://localhost:3000/api/status
 
 ---
 
-## 📝 Notas
+## Notas
 
 - O dashboard lê dados dos arquivos JSON salvos pelo container Docker
 - Para produção, configure CORS adequadamente

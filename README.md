@@ -1,8 +1,8 @@
-# 📊 Dashboard - Estação Meteorológica
+# Dashboard - Estação Meteorológica
 
 Aplicativo web para visualizar dados da estação meteorológica em tempo real.
 
-## 🚀 Instalação e Uso
+## Instalação e Uso
 
 ### Modo Local (com servidor Node.js)
 
@@ -41,7 +41,7 @@ Ou abra o arquivo `index.html` diretamente no navegador (sem servidor, mas sem d
 2. **Ou usar dados mock:**
    - O código já inclui dados de exemplo para demonstração
 
-## 📁 Estrutura
+## Estrutura
 
 ```
 dashboard/
@@ -58,7 +58,7 @@ dashboard/
 └── netlify.toml        # Configuração Netlify
 ```
 
-## 🔧 Configuração
+## Configuração
 
 ### Para uso local com dados reais:
 
@@ -72,20 +72,19 @@ dashboard/
 
 Configure a variável de ambiente `API_URL` no painel do Netlify apontando para sua API.
 
-## 📱 Funcionalidades
+## Funcionalidades
+- Visualização em tempo real dos dados
+- Interface moderna e responsiva
+- Atualização automática a cada 30 segundos
+- Suporte a múltiplas estações
+- Indicadores visuais de status
+- Design dark mode
 
-- ✅ Visualização em tempo real dos dados
-- ✅ Interface moderna e responsiva
-- ✅ Atualização automática a cada 30 segundos
-- ✅ Suporte a múltiplas estações
-- ✅ Indicadores visuais de status
-- ✅ Design dark mode
-
-## 🎨 Personalização
+## Personalização
 
 Edite `src/styles.css` para personalizar cores e layout.
 
-## 📝 Notas
+## Notas
 
 - Para produção, configure CORS adequadamente
 - Para Netlify, considere usar um serviço de proxy ou API externa

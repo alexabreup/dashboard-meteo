@@ -1,6 +1,6 @@
-# 🚀 Guia Rápido - Dashboard
+# Guia Rápido - Dashboard
 
-## ⚡ Início Rápido (Local)
+## Início Rápido (Local)
 
 ### 1. Instalar Node.js (se necessário)
 
@@ -22,7 +22,7 @@ cd /opt/docker-estacao-meteorologica/dashboard
 http://localhost:3000
 ```
 
-## 🌐 Deploy no Netlify
+## Deploy no Netlify
 
 ### Opção 1: Via Netlify CLI
 
@@ -47,7 +47,7 @@ netlify deploy --prod
    - Publish directory: `dashboard`
 4. Deploy automático!
 
-## 📋 Comandos Úteis
+## Comandos Úteis
 
 ### Servidor local
 ```bash
@@ -66,7 +66,7 @@ curl http://localhost:3000/api/dados
 curl http://localhost:3000/api/status
 ```
 
-## 🔧 Configuração
+## Configuração
 
 ### Ajustar caminho dos dados
 
