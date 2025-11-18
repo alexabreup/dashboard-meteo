@@ -1,124 +1,177 @@
-// Configuração da API
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3000/api'
-    : '/.netlify/functions/api';
+// Configurações principais
+const API_BASE_URL = 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
+const STATION_IDS = [2, 3, 7, 8];
+const ACTIVE_THRESHOLD_MINUTES = 10;
+const REFRESH_INTERVAL_MS = 30000; // 30 segundos
 
-// Estado da aplicação
 let updateInterval = null;
 
-// Inicialização
 document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refreshBtn');
     refreshBtn.addEventListener('click', loadData);
-    
+
     loadData();
-    // Após carregar, atualizar a cada 1 minuto (60000 ms)
-    // O intervalo será iniciado após o primeiro carregamento bem-sucedido
 });
 
-// Carregar dados
 async function loadData() {
     const loading = document.getElementById('loading');
-    const error = document.getElementById('error');
-    
-    loading.style.display = 'block';
-    error.style.display = 'none';
+    const errorBox = document.getElementById('error');
     const tabsContainer = document.getElementById('tabs-container');
-    if (tabsContainer) {
-        tabsContainer.style.display = 'none';
-    }
-    
+
+    loading.style.display = 'block';
+    errorBox.style.display = 'none';
+    tabsContainer.style.display = 'none';
+
     try {
-        // Timeout de 2 minutos (120 segundos) para dar tempo da busca paralela
-        const controller = new AbortController();
-        let timeoutId = setTimeout(() => controller.abort(), 120000);
-        
-        console.log('Buscando dados de:', `${API_BASE_URL}/dados`);
-        
-        const response = await fetch(`${API_BASE_URL}/dados`, {
-            signal: controller.signal,
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('Dados recebidos:', data);
-        
-        if (!Array.isArray(data)) {
-            throw new Error('Resposta da API não é um array');
-        }
-        
+        const stations = await fetchStations();
+
         loading.style.display = 'none';
-        displayStations(data);
+        errorBox.style.display = 'none';
+
+        displayStations(stations);
         updateLastUpdate();
-        
-        // Iniciar atualização automática a cada 1 minuto após carregamento bem-sucedido
-        if (updateInterval) {
-            clearInterval(updateInterval);
-        }
-        updateInterval = setInterval(loadData, 60000); // 1 minuto
-        
-    } catch (err) {
-        if (typeof timeoutId !== 'undefined') {
-            clearTimeout(timeoutId);
-        }
-        console.error('Erro ao carregar dados:', err);
+
+        tabsContainer.style.display = 'block';
+
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(loadData, REFRESH_INTERVAL_MS);
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
         loading.style.display = 'none';
-        error.style.display = 'block';
-        
-        let errorMessage = 'Erro desconhecido';
-        if (err.name === 'AbortError') {
-            errorMessage = 'Timeout: A requisição demorou muito para responder. Verifique sua conexão ou se a API está acessível.';
-        } else if (err.message) {
-            errorMessage = err.message;
-        }
-        
-        error.innerHTML = `
-            <p>❌ Erro ao carregar dados: ${errorMessage}</p>
+        errorBox.style.display = 'block';
+        errorBox.innerHTML = `
+            <p>Erro ao carregar dados: ${error.message || 'Erro desconhecido'}</p>
             <p style="font-size: 12px; margin-top: 8px;">
-                URL tentada: <code>${API_BASE_URL}/dados</code>
+                Fonte consultada: <code>${API_BASE_URL}</code>
             </p>
             <p style="font-size: 12px; margin-top: 8px;">
                 <button onclick="loadData()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    🔄 Tentar Novamente
+                    Tentar novamente
                 </button>
             </p>
         `;
     }
 }
 
+async function fetchStations() {
+    const requests = STATION_IDS.map(id => fetchStationData(id));
+    const results = await Promise.allSettled(requests);
+
+    return results.map((result, index) => {
+        const estacaoId = STATION_IDS[index];
+        if (result.status === 'fulfilled') {
+            return result.value;
+        }
+
+        return {
+            estacao_id: estacaoId,
+            nome: `Estação ${estacaoId}`,
+            erro: result.reason?.message || 'Erro ao buscar dados',
+            timestamp: null
+        };
+    });
+}
+
+async function fetchStationData(estacaoId) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/${estacaoId}`, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return normalizeStationData(estacaoId, data);
+    } catch (error) {
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function normalizeStationData(estacaoId, apiData) {
+    const payload = apiData?.arrResponse || apiData;
+
+    if (!payload) {
+        return {
+            estacao_id: estacaoId,
+            nome: `Estação ${estacaoId}`,
+            erro: 'Resposta inválida da API',
+            timestamp: null
+        };
+    }
+
+    const timestamp = extractTimestamp(payload);
+
+    return {
+        estacao_id: estacaoId,
+        nome: payload.nome || `Estação ${estacaoId}`,
+        localizacao: payload.localizacao || payload.local || null,
+        timestamp,
+        temperatura: extractNumber(payload.Temperatura || payload.temperatura),
+        umidade: extractNumber(payload.Umidade || payload.umidade),
+        pressao: extractNumber(payload['Pressão Atmosférica'] || payload.pressao),
+        vento_velocidade: extractNumber(payload.Vento || payload.velocidade_vento),
+        vento_direcao: extractNumber(payload['Direção do Vento'] || payload.direcao_vento),
+        ruido: extractNumber(payload['Ruído'] || payload.ruido),
+        iluminancia: extractNumber(payload.Luminosidade || payload.iluminancia),
+        chuva_total: extractNumber(payload.Chuva || payload.precipitacao),
+        pm25: extractNumber(payload['PM2.5'] || payload.pm25),
+        pm10: extractNumber(payload.PM10 || payload.pm10),
+        erro: null
+    };
+}
+
+function extractTimestamp(payload) {
+    const raw = payload['Última Leitura'] || payload.ultima_leitura || payload.lastReading;
+    if (!raw) return null;
+
+    if (raw.includes('T')) {
+        return new Date(raw).toISOString();
+    }
+
+    // Formato esperado: DD/MM/YYYY HH:mm:ss
+    const [datePart, timePart] = raw.split(' ');
+    if (!datePart || !timePart) return null;
+
+    const [day, month, year] = datePart.split('/');
+    if (!day || !month || !year) return null;
+
+    const isoString = `${year}-${month}-${day}T${timePart}`;
+    const parsedDate = new Date(isoString);
+    return isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString();
+}
+
+function extractNumber(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return value;
+    const match = value.toString().replace(',', '.').match(/-?\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : null;
+}
+
 // Função: Verificar se estação está ativa (última leitura nos últimos 10 minutos)
 function isEstacaoAtiva(station) {
     if (station.erro) return false;
-    
     if (!station.timestamp) return false;
-    
-    const agora = new Date();
-    const ultimaLeitura = new Date(station.timestamp);
-    const diferencaMinutos = (agora - ultimaLeitura) / (1000 * 60); // Diferença em minutos
-    
-    return diferencaMinutos <= 10; // Ativa se última leitura foi há 10 minutos ou menos
+
+    const agora = Date.now();
+    const ultimaLeitura = new Date(station.timestamp).getTime();
+    const diferencaMinutos = (agora - ultimaLeitura) / (1000 * 60);
+
+    return diferencaMinutos <= ACTIVE_THRESHOLD_MINUTES;
 }
 
-// Função: Verificar se estação está desconectada (última leitura há mais de 30 minutos)
 function isEstacaoDesconectada(station) {
-    if (station.erro) return true; // Estações com erro são consideradas desconectadas
-    
+    if (station.erro) return true;
     if (!station.timestamp) return true;
-    
-    const agora = new Date();
-    const ultimaLeitura = new Date(station.timestamp);
-    const diferencaMinutos = (agora - ultimaLeitura) / (1000 * 60); // Diferença em minutos
-    
-    return diferencaMinutos > 30; // Desconectada se última leitura foi há mais de 30 minutos
+
+    return !isEstacaoAtiva(station);
 }
 
 // Função: Ordenar estações por data/hora (mais recente primeiro)
@@ -151,169 +204,128 @@ function displayStations(data) {
     const tabsContainer = document.getElementById('tabs-container');
     const activeContainer = document.getElementById('stations-active');
     const disconnectedContainer = document.getElementById('stations-disconnected');
-    
+
     if (!data || data.length === 0) {
         tabsContainer.style.display = 'none';
         return;
     }
-    
-    // Separar estações ativas (últimos 10 min) e desconectadas (+30 min)
-    let activeStations = data.filter(station => isEstacaoAtiva(station));
-    let disconnectedStations = data.filter(station => isEstacaoDesconectada(station));
-    
-    // Ordenar por data/hora (mais recente primeiro)
-    activeStations = ordenarPorDataHora(activeStations);
-    disconnectedStations = ordenarPorDataHora(disconnectedStations);
-    
-    // Atualizar contadores
+
+    const orderedData = ordenarPorDataHora([...data]);
+    const activeStations = orderedData.filter(isEstacaoAtiva);
+    const disconnectedStations = orderedData.filter(station => !isEstacaoAtiva(station));
+
     document.getElementById('count-active').textContent = activeStations.length;
     document.getElementById('count-disconnected').textContent = disconnectedStations.length;
-    
-    // Exibir estações ativas
-    if (activeStations.length > 0) {
-        activeContainer.innerHTML = activeStations.map(station => createStationCard(station, true)).join('');
-    } else {
-        activeContainer.innerHTML = '<div class="no-stations">Nenhuma estação ativa nos últimos 10 minutos</div>';
-    }
-    
-    // Exibir estações desconectadas
-    if (disconnectedStations.length > 0) {
-        disconnectedContainer.innerHTML = disconnectedStations.map(station => createStationCard(station, false)).join('');
-    } else {
-        disconnectedContainer.innerHTML = '<div class="no-stations">Nenhuma estação desconectada</div>';
-    }
-    
-    // Mostrar container de abas
+
+    activeContainer.innerHTML = activeStations.length
+        ? activeStations.map(station => createStationCard(station, true)).join('')
+        : '<div class="no-stations">Nenhuma estação ativa nos últimos 10 minutos</div>';
+
+    disconnectedContainer.innerHTML = disconnectedStations.length
+        ? disconnectedStations.map(station => createStationCard(station, false)).join('')
+        : '<div class="no-stations">Nenhuma estação desconectada</div>';
+
     tabsContainer.style.display = 'block';
 }
 
 // Criar card da estação
 function createStationCard(station, isActive = true) {
-    // Formatar data no formato brasileiro: 17/11/2025, 16:22:25
-    let timeStr = 'Data não disponível';
-    if (station.timestamp) {
-        const timestamp = new Date(station.timestamp);
-        const dia = String(timestamp.getDate()).padStart(2, '0');
-        const mes = String(timestamp.getMonth() + 1).padStart(2, '0');
-        const ano = timestamp.getFullYear();
-        const hora = String(timestamp.getHours()).padStart(2, '0');
-        const minuto = String(timestamp.getMinutes()).padStart(2, '0');
-        const segundo = String(timestamp.getSeconds()).padStart(2, '0');
-        timeStr = `${dia}/${mes}/${ano}, ${hora}:${minuto}:${segundo}`;
+    const timeStr = station.timestamp ? formatTimestamp(station.timestamp) : 'Data não disponível';
+
+    if (station.erro) {
+        return `
+            <div class="station-card inactive">
+                <div class="station-header">
+                    <div class="station-title">
+                        <span class="station-status offline"></span>
+                        ${station.nome}
+                    </div>
+                    <div class="station-id">ID ${station.estacao_id}</div>
+                </div>
+                <div class="error" style="margin-top: 16px;">
+                    <p>Erro: ${station.erro}</p>
+                </div>
+            </div>
+        `;
     }
-    
+
     return `
         <div class="station-card ${isActive ? 'active' : 'inactive'}">
             <div class="station-header">
                 <div>
                     <div class="station-title">
-                        <span class="station-status ${station.erro ? 'offline' : 'online'}"></span>
-                        Estação Meteorológica
+                        <span class="station-status ${isActive ? 'online' : 'offline'}"></span>
+                        ${station.nome}
                     </div>
+                    ${station.localizacao ? `<div class="station-location">${station.localizacao}</div>` : ''}
                 </div>
                 <div class="station-id">ID ${station.estacao_id}</div>
             </div>
-            
-            ${station.erro ? `
-                <div class="error" style="margin-top: 16px;">
-                    <p>⚠️ Erro: ${station.erro}</p>
+
+            <div class="sensors-grid">
+                ${renderSensor('Temperatura', formatValue(station.temperatura, '°C'))}
+                ${renderSensor('Umidade', formatValue(station.umidade, '%'))}
+                ${renderSensor('Pressão', formatValue(station.pressao, 'hPa'))}
+                ${renderSensor('Vento', formatValue(station.vento_velocidade, 'km/h'))}
+                ${renderSensor('Direção', station.vento_direcao !== null ? `${station.vento_direcao}°` : '--')}
+                ${renderSensor('Ruído', formatValue(station.ruido, 'dB'))}
+                ${renderSensor('Iluminância', formatValue(station.iluminancia, 'lux', 0))}
+                ${renderSensor('Chuva Total', formatValue(station.chuva_total, 'mm'))}
+                ${renderSensor('PM2.5', formatValue(station.pm25, 'μg/m³', 0))}
+                ${renderSensor('PM10', formatValue(station.pm10, 'μg/m³', 0))}
+            </div>
+
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    Última leitura: ${timeStr}
                 </div>
-            ` : `
-                <div class="sensors-grid">
-                    <div class="sensor-item">
-                        <div class="sensor-label">🌡️ Temperatura</div>
-                        <div class="sensor-value">
-                            <span>${station.temperatura.toFixed(1)}</span>
-                            <span class="sensor-unit">°C</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">💧 Umidade</div>
-                        <div class="sensor-value">
-                            <span>${station.umidade.toFixed(1)}</span>
-                            <span class="sensor-unit">%</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">📊 Pressão</div>
-                        <div class="sensor-value">
-                            <span>${station.pressao.toFixed(1)}</span>
-                            <span class="sensor-unit">hPa</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">🌬️ Vento</div>
-                        <div class="sensor-value">
-                            <span>${station.vento_velocidade.toFixed(1)}</span>
-                            <span class="sensor-unit">km/h</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">🧭 Direção</div>
-                        <div class="sensor-value">
-                            <span>${station.vento_direcao}°</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">🔊 Ruído</div>
-                        <div class="sensor-value">
-                            <span>${station.ruido.toFixed(1)}</span>
-                            <span class="sensor-unit">dB</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">☀️ Iluminância</div>
-                        <div class="sensor-value">
-                            <span>${station.iluminancia.toFixed(0)}</span>
-                            <span class="sensor-unit">lux</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">🌧️ Chuva Total</div>
-                        <div class="sensor-value">
-                            <span>${station.chuva_total.toFixed(1)}</span>
-                            <span class="sensor-unit">mm</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">🌫️ PM2.5</div>
-                        <div class="sensor-value">
-                            <span>${station.pm25.toFixed(0)}</span>
-                            <span class="sensor-unit">μg/m³</span>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-item">
-                        <div class="sensor-label">🌫️ PM10</div>
-                        <div class="sensor-value">
-                            <span>${station.pm10.toFixed(0)}</span>
-                            <span class="sensor-unit">μg/m³</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-                    <div style="font-size: 12px; color: var(--text-muted);">
-                        📅 Última leitura: ${timeStr}
-                    </div>
-                </div>
-            `}
+            </div>
         </div>
     `;
+}
+
+function renderSensor(label, value) {
+    return `
+        <div class="sensor-item">
+            <div class="sensor-label">${label}</div>
+            <div class="sensor-value">
+                <span>${value}</span>
+            </div>
+        </div>
+    `;
+}
+
+function formatValue(value, unit = '', decimals = 1) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+        return '--';
+    }
+    const formatted = value.toFixed(decimals);
+    return unit ? `${formatted} ${unit}` : formatted;
+}
+
+function formatTimestamp(isoString) {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return 'Data não disponível';
+    return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
 // Atualizar última atualização
 function updateLastUpdate() {
     const lastUpdate = document.getElementById('lastUpdate');
     const now = new Date();
-    lastUpdate.textContent = `Última atualização: ${now.toLocaleTimeString('pt-BR')}`;
+    lastUpdate.textContent = `Última atualização do dashboard: ${now.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    })}`;
 }
 
