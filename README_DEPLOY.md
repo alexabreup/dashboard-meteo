@@ -57,7 +57,7 @@ Se quiser personalizar a API ou intervalo de estações:
    - `ESTACOES_MIN`: ID mínimo da estação (padrão: `1`)
    - `ESTACOES_MAX`: ID máximo da estação (padrão: `30`)
    - `MAX_ESTACOES_ATIVAS`: quantidade máxima de estações retornadas pelo dashboard (padrão: `4`)
-   - `ESTACOES_ATIVAS_IDS`: lista de IDs separados por vírgula a serem considerados (ex.: `1,5,8,12`). Se informada, apenas esses IDs serão consultados (útil quando você sabe exatamente quais 4 estações estão ativas).
+   - `ESTACOES_ATIVAS_IDS`: lista de IDs separados por vírgula a serem considerados (ex.: `2,3,7,8`). Se informada, apenas esses IDs serão consultados (útil quando você sabe quais estações podem estar ativas). Caso não configure, usamos `2,3,7,8` como padrão.
 
 ### 4. Verificar Deploy
 

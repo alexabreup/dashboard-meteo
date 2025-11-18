@@ -14,7 +14,12 @@ const MAX_ESTACOES_ATIVAS = Math.max(
         10
     )
 );
-const ESTACOES_ATIVAS_IDS = (process.env.ESTACOES_ATIVAS_IDS || process.env.ACTIVE_STATIONS || '')
+const DEFAULT_ESTACOES_ATIVAS_IDS = [2, 3, 7, 8];
+const ESTACOES_ATIVAS_IDS = (
+    process.env.ESTACOES_ATIVAS_IDS ||
+    process.env.ACTIVE_STATIONS ||
+    DEFAULT_ESTACOES_ATIVAS_IDS.join(',')
+)
     .split(',')
     .map((id) => parseInt(id.trim(), 10))
     .filter(Number.isFinite);
@@ -165,10 +170,6 @@ async function obterListaEstacoes() {
             if (resposta && resposta.code === 200 && resposta.arrResponse) {
                 idsEncontrados.push(id);
                 falhasConsecutivas = 0; // Resetar contador de falhas
-
-                if (idsEncontrados.length >= MAX_ESTACOES_ATIVAS) {
-                    break;
-                }
             } else {
                 falhasConsecutivas++;
                 if (falhasConsecutivas >= FALHAS_CONSECUTIVAS_MAX) {
@@ -221,19 +222,19 @@ async function buscarDadosEstacoes() {
             }
         });
         
-        const dadosOrdenados = dados
-            .filter(estacao => !estacao.erro)
-            .sort((a, b) => {
-                const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-                const dataB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-                return dataB - dataA;
-            });
+        const dadosValidos = dados.filter(estacao => !estacao.erro);
+        const dadosOrdenados = dadosValidos.sort((a, b) => {
+            const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const dataB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return dataB - dataA;
+        });
 
-        if (dadosOrdenados.length >= MAX_ESTACOES_ATIVAS) {
-            return dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
-        }
+        const selecionados = dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
+        const idsSelecionados = new Set(selecionados.map(estacao => estacao.estacao_id));
 
-        return dadosOrdenados;
+        const restantes = dados.filter(estacao => estacao.erro || !idsSelecionados.has(estacao.estacao_id));
+
+        return [...selecionados, ...restantes];
     } catch (error) {
         console.error('Erro ao buscar dados das estações:', error);
         return [];

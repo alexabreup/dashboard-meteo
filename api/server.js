@@ -26,7 +26,12 @@ const MAX_ESTACOES_ATIVAS = Math.max(
         10
     )
 );
-const ESTACOES_ATIVAS_IDS = (process.env.ESTACOES_ATIVAS_IDS || process.env.ACTIVE_STATIONS || '')
+const DEFAULT_ESTACOES_ATIVAS_IDS = [2, 3, 7, 8];
+const ESTACOES_ATIVAS_IDS = (
+    process.env.ESTACOES_ATIVAS_IDS ||
+    process.env.ACTIVE_STATIONS ||
+    DEFAULT_ESTACOES_ATIVAS_IDS.join(',')
+)
     .split(',')
     .map((id) => parseInt(id.trim(), 10))
     .filter(Number.isFinite);
@@ -268,14 +273,12 @@ async function lerDadosEstacoes() {
             
             if (resultado.status === 'fulfilled') {
                 const dadosEstacao = resultado.value;
-                // Só adicionar se não tiver erro
                 if (!dadosEstacao.erro) {
-                    dados.push(dadosEstacao);
                     sucesso++;
                 } else {
-                    // Ignorar estações que não existem (erro de busca)
                     falhas++;
                 }
+                dados.push(dadosEstacao);
             } else {
                 // Ignorar erros de requisição (estação não existe ou erro de conexão)
                 falhas++;
@@ -296,15 +299,19 @@ async function lerDadosEstacoes() {
         console.error('Erro ao buscar dados das estações:', error);
     }
     
-    const dadosOrdenados = dados
-        .filter(estacao => !estacao.erro)
-        .sort((a, b) => {
-            const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const dataB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            return dataB - dataA;
-        });
+    const dadosValidos = dados.filter(estacao => !estacao.erro);
+    const dadosOrdenados = dadosValidos.sort((a, b) => {
+        const dataA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const dataB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return dataB - dataA;
+    });
 
-    return dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
+    const selecionados = dadosOrdenados.slice(0, MAX_ESTACOES_ATIVAS);
+    const idsSelecionados = new Set(selecionados.map(estacao => estacao.estacao_id));
+
+    const restantes = dados.filter(estacao => estacao.erro || !idsSelecionados.has(estacao.estacao_id));
+
+    return [...selecionados, ...restantes];
 }
 
 // Função: Ler dados de uma estação específica
