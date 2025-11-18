@@ -1,0 +1,24 @@
+{
+  "name": "dashboard-estacao-meteorologica",
+  "version": "1.0.0",
+  "description": "Dashboard web para visualização de dados da estação meteorológica",
+  "main": "index.html",
+  "scripts": {
+    "install": "cd api && npm install",
+    "start": "cd api && npm start",
+    "dev": "cd api && npm run dev"
+  },
+  "keywords": [
+    "dashboard",
+    "estacao",
+    "meteorologica",
+    "monitoramento"
+  ],
+  "author": "Eletromidia",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+}
+

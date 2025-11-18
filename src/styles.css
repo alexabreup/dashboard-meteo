@@ -1,0 +1,447 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Cores Eletromidia - Esquema Laranja */
+    --primary: #FF6600;
+    --primary-dark: #E55A00;
+    --primary-light: #FF8533;
+    --primary-lighter: #FFA366;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --bg: #FFFFFF;
+    --bg-card: #F8F9FA;
+    --bg-hover: #F0F0F0;
+    --text: #1a1a1a;
+    --text-muted: #666666;
+    --border: #E0E0E0;
+    --shadow: rgba(255, 102, 0, 0.15);
+    --shadow-hover: rgba(255, 102, 0, 0.25);
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #FFF5F0 0%, #FFFFFF 100%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+header {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 24px 32px;
+    margin-bottom: 32px;
+    box-shadow: 0 4px 6px var(--shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    border: 1px solid var(--border);
+}
+
+.header-title-section {
+    display: flex;
+    align-items: center;
+}
+
+.logo-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.logo-img {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+}
+
+.title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin: 0;
+    font-style: italic;
+}
+
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.last-update {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.btn-refresh {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.btn-refresh:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow-hover);
+}
+
+.btn-refresh:active {
+    transform: translateY(0);
+}
+
+.loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.spinner {
+    border: 4px solid var(--border);
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+.loading p {
+    color: var(--text-muted);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error {
+    background: #FEE2E2;
+    color: var(--danger);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 32px;
+    border: 1px solid var(--danger);
+}
+
+/* Sistema de Abas */
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0;
+}
+
+.tab-button {
+    background: transparent;
+    border: none;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab-button:hover {
+    color: var(--primary);
+    background: rgba(255, 102, 0, 0.05);
+}
+
+.tab-button.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: rgba(255, 102, 0, 0.1);
+}
+
+.tab-count {
+    background: var(--primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 24px;
+    text-align: center;
+}
+
+.tab-button.active .tab-count {
+    background: var(--primary-dark);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.no-stations {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 16px;
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px dashed var(--border);
+}
+
+.stations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.station-card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 6px var(--shadow);
+    transition: all 0.3s;
+    border: 1px solid var(--border);
+}
+
+.station-card.active {
+    border: 2px solid var(--primary);
+    background: linear-gradient(135deg, #FFF5F0 0%, var(--bg-card) 100%);
+    box-shadow: 0 4px 12px var(--shadow-hover);
+}
+
+.station-card.active:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px var(--shadow-hover);
+    border-color: var(--primary-dark);
+}
+
+.station-card.inactive {
+    opacity: 0.7;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.station-card.inactive:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    opacity: 0.85;
+}
+
+.station-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.station-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.station-card.inactive .station-title {
+    color: var(--text-muted);
+}
+
+.station-id {
+    background: var(--primary);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.station-card.inactive .station-id {
+    background: var(--text-muted);
+}
+
+.station-status {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.station-status.online {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+}
+
+.station-status.offline {
+    background: var(--danger);
+}
+
+.sensors-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.sensor-item {
+    background: var(--bg);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+}
+
+.sensor-item:hover {
+    border-color: var(--primary);
+    background: var(--bg-hover);
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.sensor-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.sensor-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.station-card.inactive .sensor-value {
+    color: var(--text-muted);
+}
+
+.sensor-unit {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.sensor-icon {
+    font-size: 20px;
+    margin-right: 8px;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.footer-info {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .logo-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .logo-img {
+        height: 50px;
+    }
+
+    header h1 {
+        font-size: 24px;
+    }
+
+    .subtitle {
+        font-size: 12px;
+    }
+
+    .tabs {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .tab-button {
+        width: 100%;
+        justify-content: space-between;
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .stations-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sensors-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.station-card {
+    animation: fadeIn 0.5s ease-out;
+}
+

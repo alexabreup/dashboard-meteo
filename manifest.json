@@ -1,0 +1,28 @@
+{
+  "name": "Estação Meteorológica - Eletromidia",
+  "short_name": "Estação Met",
+  "description": "Dashboard de monitoramento de estações meteorológicas - Departamento de Pesquisas, Desenvolvimentos e Inovações",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FF6600",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Eletromidia_logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Eletromidia_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["weather", "utilities"],
+  "screenshots": [],
+  "shortcuts": []
+}
+
