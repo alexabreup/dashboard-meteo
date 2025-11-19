@@ -2,6 +2,10 @@
   publish = "."
   functions = "netlify/functions"
 
+[functions]
+  directory = "netlify/functions"
+  included_files = ["data/locations.json"]
+
 [[redirects]]
   from = "/api/locations/*"
   to = "/.netlify/functions/locations/:splat"
