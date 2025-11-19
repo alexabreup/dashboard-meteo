@@ -9,7 +9,7 @@ const USE_NETLIFY_PROXY = isNetlifyHost || currentHostname === 'eletrometeorolgi
 const API_BASE_URL = USE_NETLIFY_PROXY ? NETLIFY_API_PATH : REMOTE_API_BASE_URL;
 const MAX_STATION_ID = 50; // Limite máximo de IDs para testar
 const ACTIVE_THRESHOLD_MINUTES = 10;
-const REFRESH_INTERVAL_MS = 30000; // 30 segundos
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hora
 
 let updateInterval = null;
