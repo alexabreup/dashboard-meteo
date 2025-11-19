@@ -1,0 +1,39 @@
+{
+  "1": {
+    "nome": "Parada Guianas B/C - nucmet-04",
+    "endereco": "Av. Nove de Julho, 4050",
+    "latitude": -23.57425728776096,
+    "longitude": -46.66755107915298
+  },
+  "2": {
+    "nome": "Estação FGV - 9 de Julho - nucmet-01",
+    "endereco": "Av. Nove de Julho, 2023",
+    "latitude": "-23.559533182035008",
+    "longitude": "-46.654464893252666"
+  },
+  "3": {
+    "nome": "Parada José Maria Lisboa B/C - nucmet-02",
+    "endereco": "Av. Nove de Julho, 3011",
+    "latitude": -23.56671186684217,
+    "longitude": -46.65851453335133
+  },
+  "4": {
+    "nome": "Parada Estados Unidos B/C - nucmet-03",
+    "endereco": "Av. Nove de Julho, 3475",
+    "latitude": -23.57005422207799,
+    "longitude": -46.66192004519423
+  },
+  "7": {
+    "nome": "Departamento de Hardware Eletromidia - nucmet-0X",
+    "endereco": "R. Bartolomeu Paes, 136B",
+    "latitude": -23.514509556451124,
+    "longitude": -46.71516142043263
+  },
+  "8": {
+    "nome": "Departamento de Hardware Eletromidia - nucmet-0X",
+    "endereco": "R. Bartolomeu Paes, 136B",
+    "latitude": -23.514509556451124,
+    "longitude": -46.71516142043263
+  }
+}
+

@@ -1,6 +1,7 @@
 // Configurações principais
 const REMOTE_API_BASE_URL = 'https://iothub.eletromidia.com.br/api/v1/estacoes_mets';
 const NETLIFY_API_PATH = '/api/dados';
+const API_LOCATIONS = '/api/locations';
 const isBrowser = typeof window !== 'undefined';
 const currentHostname = isBrowser ? window.location.hostname : '';
 const isNetlifyHost = Boolean(currentHostname && currentHostname.endsWith('netlify.app'));
@@ -13,6 +14,8 @@ const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hora
 
 let updateInterval = null;
 let discoveredStationIds = null;
+let locationsCache = {};
+let locationsLoaded = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refreshBtn');
@@ -62,6 +65,7 @@ async function loadData() {
             }
         }
 
+        await loadLocations();
         const stations = await fetchStations();
 
         loading.style.display = 'none';
@@ -138,6 +142,87 @@ function clearCachedStationIds() {
     } catch (error) {
         console.warn('Erro ao limpar cache de estações:', error);
     }
+}
+
+// Localizações das estações
+async function loadLocations(force = false) {
+    if (!isBrowser) {
+        locationsLoaded = true;
+        return locationsCache;
+    }
+
+    if (locationsLoaded && !force) {
+        return locationsCache;
+    }
+
+    try {
+        console.log('📍 Carregando localizações das estações...');
+        const response = await fetch(API_LOCATIONS, {
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        locationsCache = await response.json();
+        locationsLoaded = true;
+        console.log(`✅ ${Object.keys(locationsCache).length} localizações carregadas`);
+    } catch (error) {
+        console.error('❌ Erro ao carregar localizações:', error);
+        locationsCache = {};
+        locationsLoaded = true;
+    }
+
+    return locationsCache;
+}
+
+function getLocationFromCache(stationId) {
+    if (!stationId) {
+        return {
+            nome: `Estação ${stationId ?? '?'}`,
+            endereco: null,
+            latitude: null,
+            longitude: null,
+            mapsUrl: null
+        };
+    }
+
+    const idKey = stationId.toString();
+    const loc = locationsCache?.[idKey] || {};
+    const endereco = (loc.endereco || '').trim();
+    const latitude = (loc.latitude ?? '').toString().trim();
+    const longitude = (loc.longitude ?? '').toString().trim();
+    const hasCoordinates = latitude !== '' && longitude !== '';
+
+    return {
+        nome: loc.nome || `Estação ${idKey}`,
+        endereco: endereco || null,
+        latitude: hasCoordinates ? latitude : null,
+        longitude: hasCoordinates ? longitude : null,
+        mapsUrl: hasCoordinates ? `https://www.google.com/maps?q=${latitude},${longitude}` : null
+    };
+}
+
+function decorateStationWithLocation(station = {}) {
+    const estacaoId = station.estacao_id ?? station.id ?? null;
+    if (!estacaoId) {
+        return station;
+    }
+
+    const location = getLocationFromCache(estacaoId);
+    const enderecoPreferencial = location.endereco && location.endereco.trim() !== '' ? location.endereco : null;
+
+    return {
+        ...station,
+        estacao_id: estacaoId,
+        nome: location.nome || station.nome || `Estação ${estacaoId}`,
+        localizacao: enderecoPreferencial || station.localizacao || null,
+        endereco: enderecoPreferencial || station.endereco || null,
+        latitude: location.latitude || station.latitude || null,
+        longitude: location.longitude || station.longitude || null,
+        mapsUrl: location.mapsUrl || station.mapsUrl || null
+    };
 }
 
 // Função: Descobrir todas as estações disponíveis
@@ -261,12 +346,12 @@ async function fetchStations() {
             return result.value;
         }
 
-        return {
+        return decorateStationWithLocation({
             estacao_id: estacaoId,
             nome: `Estação ${estacaoId}`,
             erro: result.reason?.message || 'Erro ao buscar dados',
             timestamp: null
-        };
+        });
     });
 }
 
@@ -285,7 +370,8 @@ async function fetchStationData(estacaoId) {
         }
 
         const data = await response.json();
-        return normalizeStationData(estacaoId, data);
+        const normalized = normalizeStationData(estacaoId, data);
+        return decorateStationWithLocation(normalized);
     } catch (error) {
         throw error;
     } finally {
@@ -312,7 +398,7 @@ async function fetchStationsViaProxy() {
             throw new Error('Resposta inválida do proxy');
         }
 
-        return data.map(normalizeProxyStationData);
+        return data.map(payload => decorateStationWithLocation(normalizeProxyStationData(payload)));
     } finally {
         clearTimeout(timeoutId);
     }
@@ -516,6 +602,21 @@ function createStationCard(station, isActive = true) {
         `;
     }
 
+    const locationSection = `
+        <div class="station-location-block">
+            <p class="location-label">📍 Localização:</p>
+            <p class="station-location-text">${station.localizacao || '-'}</p>
+            ${station.mapsUrl ? `
+                <a href="${station.mapsUrl}" target="_blank" rel="noopener noreferrer" class="maps-link">
+                    🗺️ Ver no Google Maps
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                </a>
+            ` : ''}
+        </div>
+    `;
+
     return `
         <div class="station-card ${isActive ? 'active' : 'inactive'}">
             <div class="station-header">
@@ -524,10 +625,11 @@ function createStationCard(station, isActive = true) {
                         <span class="station-status ${isActive ? 'online' : 'offline'}"></span>
                         ${station.nome}
                     </div>
-                    ${station.localizacao ? `<div class="station-location">${station.localizacao}</div>` : ''}
                 </div>
                 <div class="station-id">ID ${station.estacao_id}</div>
             </div>
+
+            ${locationSection}
 
             <div style="margin-top: 12px; margin-bottom: 16px;">
                 <h4 style="margin: 0; font-size: 1.1rem; font-weight: 500; color: var(--text-primary);">
