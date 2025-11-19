@@ -1,6 +1,6 @@
 {
-  "name": "Estação Meteorológica - Eletromidia",
-  "short_name": "Estação Met",
+  "name": "Estações Meteorológicas Eletromidia",
+  "short_name": "Estações Met",
   "description": "Dashboard de monitoramento de estações meteorológicas - Departamento de Pesquisas, Desenvolvimentos e Inovações",
   "start_url": "/",
   "display": "standalone",
